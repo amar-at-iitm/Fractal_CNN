@@ -26,9 +26,9 @@ def train():
     wandb.init()
     config = wandb.config
     # Generating a meaningful run name using config values
-    run_name = f"run_filters-{config.filters_per_layer}_act-{config.activation}_bs-{config.batch_size}_lr-{config.learning_rate}_do-{config.dropout_rate}_bn-{config.use_batchnorm}_aug-{config.augmentation}"
-    wandb.run.name = run_name
-    wandb.run.save()
+    # run_name = f"run_filters-{config.filters_per_layer}_act-{config.activation}_bs-{config.batch_size}_lr-{config.learning_rate}_do-{config.dropout_rate}_bn-{config.use_batchnorm}_aug-{config.augmentation}"
+    # wandb.run.name = run_name
+    # wandb.run.save()
 
     # Transforms
     train_tf, val_tf = get_transforms(config.augmentation)
