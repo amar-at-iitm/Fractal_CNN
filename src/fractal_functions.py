@@ -177,9 +177,6 @@ def alpha_fractalize(f, g, a, b, n_sub, in_alpha, n_iter, dict=True):
     Y = f(X)
     G = g(X)
 
-    print(f"f({a}) = {Y[0]}, f({b}) = {Y[-1]}")
-    print(f"g({a}) = {G[0]}, g({b}) = {G[-1]}")
-
     if not np.isclose(G[0], Y[0], atol=1e-10) or not np.isclose(G[-1], Y[-1], atol=1e-10):
         print("Boundary condition mismatch!")
         print(f"|g({a}) - f({a})| = {np.abs(G[0] - Y[0]):.2e}")
