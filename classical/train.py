@@ -47,8 +47,8 @@ def train():
     train_tf, val_tf = get_transforms(config.augmentation)
 
     # Loading datasets
-    train_data = datasets.ImageFolder("inaturalist_12K/train", transform=train_tf)
-    val_data = datasets.ImageFolder("inaturalist_12K/val", transform=val_tf)
+    train_data = datasets.ImageFolder("../inaturalist_12K/train", transform=train_tf)
+    val_data = datasets.ImageFolder("../inaturalist_12K/val", transform=val_tf)
 
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -179,6 +179,6 @@ def train():
 # Run wandb agent with sweep
 if __name__ == "__main__":
     sweep_id = wandb.sweep(sweep_config, project="Fractal_CNN")
-    wandb.agent(sweep_id, function=train, count=2)
+    wandb.agent(sweep_id, function=train)
     wandb.finish()
     print("Sweep complete")
