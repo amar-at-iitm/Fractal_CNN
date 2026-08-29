@@ -37,7 +37,7 @@ def train():
     # Generating a meaningful run name using config values
     run_name = f"run_filters-{config.filters_per_layer}_act-{config.activation}_bs-{config.batch_size}_lr-{config.learning_rate}_do-{config.dropout_rate}_bn-{config.use_batchnorm}_aug-{config.augmentation}"
     wandb.run.name = run_name
-    wandb.run.save()
+    # wandb.run.save()
 
     # Transforms
     train_tf, val_tf = get_transforms(config.augmentation)
@@ -145,7 +145,7 @@ def train():
 
 # Run wandb agent with sweep
 if __name__ == "__main__":
-    sweep_id = wandb.sweep(sweep_config, project="DA6401_assign_2")
-    wandb.agent(sweep_id, function=train, count=5)
+    sweep_id = wandb.sweep(sweep_config, project="Fractal_CNN")
+    wandb.agent(sweep_id, function=train, count=2)
     wandb.finish()
     print("Sweep complete")
