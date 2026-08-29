@@ -10,6 +10,10 @@ import os
 from model import CNNModel  
 from sweep_config import sweep_config
 
+# Enable cuDNN benchmark for faster convolutions on fixed input resolutions
+if torch.cuda.is_available():
+    torch.backends.cudnn.benchmark = True
+
 # Defining training and validation transforms
 def get_transforms(augmentation):
     if augmentation:
@@ -46,8 +50,26 @@ def train():
     train_data = datasets.ImageFolder("inaturalist_12K/train", transform=train_tf)
     val_data = datasets.ImageFolder("inaturalist_12K/val", transform=val_tf)
 
-    train_loader = DataLoader(train_data, batch_size=config.batch_size, shuffle=True, num_workers=2)
-    val_loader = DataLoader(val_data, batch_size=config.batch_size, shuffle=False, num_workers=2)
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+    num_workers = 2
+
+    train_loader = DataLoader(
+        train_data, 
+        batch_size=config.batch_size, 
+        shuffle=True, 
+        num_workers=num_workers,
+        pin_memory=use_cuda,
+        persistent_workers=(num_workers > 0)
+    )
+    val_loader = DataLoader(
+        val_data, 
+        batch_size=config.batch_size, 
+        shuffle=False, 
+        num_workers=num_workers,
+        pin_memory=use_cuda,
+        persistent_workers=(num_workers > 0)
+    )
 
     # Preparing model
     filters = config.filters_per_layer
@@ -57,15 +79,16 @@ def train():
         activation=config.activation,
         dropout=config.dropout_rate,
         use_batchnorm=config.use_batchnorm,
-        input_shape=(3, 256, 256)  
+        input_shape=(3, 192, 192)  
     )
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
     # Loss & optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
+
+    # Automatic Mixed Precision (AMP) scaler
+    scaler = torch.amp.GradScaler('cuda', enabled=use_cuda)
 
     # To track best validation accuracy
     best_val_acc = 0.0
@@ -78,12 +101,18 @@ def train():
         total_loss, correct, total = 0, 0, 0
 
         for inputs, labels in tqdm(train_loader, desc="Training Progress", ncols=100, colour="magenta"):
-            inputs, labels = inputs.to(device), labels.to(device)
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+            inputs = inputs.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
+
+            optimizer.zero_grad(set_to_none=True)
+
+            with torch.amp.autocast('cuda', enabled=use_cuda):
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
             total_loss += loss.item() * inputs.size(0)
             _, predicted = outputs.max(1)
@@ -98,9 +127,13 @@ def train():
         val_loss, val_correct, val_total = 0, 0, 0
         with torch.no_grad():
             for inputs, labels in tqdm(val_loader, desc="Validation Progress", ncols=100, colour="cyan"):
-                inputs, labels = inputs.to(device), labels.to(device)
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
+                inputs = inputs.to(device, non_blocking=True)
+                labels = labels.to(device, non_blocking=True)
+
+                with torch.amp.autocast('cuda', enabled=use_cuda):
+                    outputs = model(inputs)
+                    loss = criterion(outputs, labels)
+
                 val_loss += loss.item() * inputs.size(0)
                 _, predicted = outputs.max(1)
                 val_correct += predicted.eq(labels).sum().item()
@@ -125,7 +158,7 @@ def train():
     global_best_path = "best_accuracy.txt"
     current_best = 0.0
     
-    # Readinf global best accuracy if file exists
+    # Reading global best accuracy if file exists
     if os.path.exists(global_best_path):
         with open(global_best_path, "r") as f:
             try:
