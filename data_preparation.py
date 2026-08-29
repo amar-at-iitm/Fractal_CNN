@@ -4,7 +4,7 @@ import zipfile
 import random
 import requests
 from tqdm import tqdm
-from PIL import Image
+from PIL import Image, ImageOps
 
 def download_file(url, dest_path):
     response = requests.get(url, stream=True)
@@ -69,10 +69,10 @@ def create_val_split(train_dir, val_dir, split_ratio=0.2):
 
 
 
-def resize_images(data_dir, target_size=(256, 256)):
-    image_extensions = ('.jpg')  # Add more extensions if needed
+def crop_images(data_dir, target_size=(192, 192)):
+    image_extensions = ('.jpg', '.jpeg', '.png')
 
-    print("Resizing images...")
+    print(f"Cropping images to {target_size} around center...")
     for split in ['train', 'val', 'test']:
         split_dir = os.path.join(data_dir, split)
         if not os.path.exists(split_dir):
@@ -93,11 +93,12 @@ def resize_images(data_dir, target_size=(256, 256)):
                 try:
                     with Image.open(img_path) as img:
                         img = img.convert("RGB")  # Ensure 3 channels
-                        img = img.resize(target_size)
+                        # Center crop to target_size
+                        img = ImageOps.fit(img, target_size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
                         img.save(img_path)
                 except Exception as e:
                     print(f"Failed to process {img_path}: {e}")
-    print("Resizing completed.")
+    print("Cropping completed.")
 
 
 #  cleanup step
@@ -139,8 +140,8 @@ if __name__ == "__main__":
     val_path = os.path.join(extracted_dir, "val")
     create_val_split(train_path, val_path, split_ratio=0.2)
 
-    # Step 5: Resizing all images to 256x256
-    resize_images(extracted_dir, target_size=(256, 256))
+    # Step 5: Center-cropping all images to 192x192
+    crop_images(extracted_dir, target_size=(192, 192))
 
     # Step 6: Removing .DS_Store files
     remove_ds_store(extracted_dir)
