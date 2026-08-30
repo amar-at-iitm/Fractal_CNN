@@ -19,6 +19,9 @@ from fractal_model import CNNModel
 from fractal_sweep_config import sweep_config
 from src.tools import get_transforms
 
+# Enable cuDNN benchmark for faster convolutions on fixed input resolutions
+if torch.cuda.is_available():
+    torch.backends.cudnn.benchmark = True
 
 # Training function
 def train():
@@ -26,8 +29,8 @@ def train():
     wandb.init()
     config = wandb.config
     # Generating a meaningful run name using config values
-    # run_name = f"run_filters-{config.filters_per_layer}_act-{config.activation}_bs-{config.batch_size}_lr-{config.learning_rate}_do-{config.dropout_rate}_bn-{config.use_batchnorm}_aug-{config.augmentation}"
-    # wandb.run.name = run_name
+    run_name = f"run_filters-{config.filters_per_layer}_act-{config.activation}_bs-{config.batch_size}_lr-{config.learning_rate}_do-{config.dropout_rate}_bn-{config.use_batchnorm}_aug-{config.augmentation}"
+    wandb.run.name = run_name
     # wandb.run.save()
 
     # Transforms
@@ -38,8 +41,26 @@ def train():
     train_data = datasets.ImageFolder(str(data_root / "train"), transform=train_tf)
     val_data = datasets.ImageFolder(str(data_root / "val"), transform=val_tf)
 
-    train_loader = DataLoader(train_data, batch_size=config.batch_size, shuffle=True, num_workers=2)
-    val_loader = DataLoader(val_data, batch_size=config.batch_size, shuffle=False, num_workers=2)
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+    num_workers = 2
+
+    train_loader = DataLoader(
+        train_data, 
+        batch_size=config.batch_size, 
+        shuffle=True, 
+        num_workers=num_workers,
+        pin_memory=use_cuda,
+        persistent_workers=(num_workers > 0)
+    )
+    val_loader = DataLoader(
+        val_data, 
+        batch_size=config.batch_size, 
+        shuffle=False, 
+        num_workers=num_workers,
+        pin_memory=use_cuda,
+        persistent_workers=(num_workers > 0)
+    )
 
     # Preparing model
     filters = config.filters_per_layer
@@ -49,15 +70,16 @@ def train():
         activation=config.activation,
         dropout=config.dropout_rate,
         use_batchnorm=config.use_batchnorm,
-        input_shape=(3, 256, 256)
+        input_shape=(3, 192, 192)
     )
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
     # Loss & optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
+
+    # Automatic Mixed Precision (AMP) scaler
+    scaler = torch.amp.GradScaler('cuda', enabled=use_cuda)
 
     # To track best validation accuracy
     best_val_acc = 0.0
@@ -70,12 +92,18 @@ def train():
         total_loss, correct, total = 0, 0, 0
 
         for inputs, labels in tqdm(train_loader, desc="Training Progress", ncols=100, colour="magenta"):
-            inputs, labels = inputs.to(device), labels.to(device)
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+            inputs = inputs.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
+
+            optimizer.zero_grad(set_to_none=True)
+
+            with torch.amp.autocast('cuda', enabled=use_cuda):
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
             total_loss += loss.item() * inputs.size(0)
             _, predicted = outputs.max(1)
@@ -90,9 +118,13 @@ def train():
         val_loss, val_correct, val_total = 0, 0, 0
         with torch.no_grad():
             for inputs, labels in tqdm(val_loader, desc="Validation Progress", ncols=100, colour="cyan"):
-                inputs, labels = inputs.to(device), labels.to(device)
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
+                inputs = inputs.to(device, non_blocking=True)
+                labels = labels.to(device, non_blocking=True)
+
+                with torch.amp.autocast('cuda', enabled=use_cuda):
+                    outputs = model(inputs)
+                    loss = criterion(outputs, labels)
+
                 val_loss += loss.item() * inputs.size(0)
                 _, predicted = outputs.max(1)
                 val_correct += predicted.eq(labels).sum().item()
@@ -143,4 +175,3 @@ if __name__ == "__main__":
     wandb.agent(sweep_id, function=train, count=2)
     wandb.finish()
     print("Sweep complete")
-
