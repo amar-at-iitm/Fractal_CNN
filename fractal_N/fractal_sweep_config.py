@@ -4,10 +4,10 @@ sweep_config = {
     "parameters": {
         "filters_per_layer": {
             "values": [
-                [32, 32, 32, 32, 32],
-                [32, 64, 64, 128, 128],
+                [32, 64, 128, 256, 512],
+                [64, 128, 256, 512, 512],
                 [64, 64, 128, 128, 256],
-                [32, 64, 128, 256, 512]
+                [32, 64, 64, 128, 256]
             ]
         },
         "activation": {
@@ -26,10 +26,10 @@ sweep_config = {
             "values": [True, False]
         },
         "batch_size": {
-            "values": [32, 64, 128]
+            "values": [32, 64]
         },
         "learning_rate": {
-            "values": [1e-3, 5e-4, 1e-4]
+            "values": [1e-3, 3e-4, 1e-4]
         },
         "epochs": {
             "values": [10, 15, 20]
