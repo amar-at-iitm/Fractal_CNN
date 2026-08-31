@@ -46,9 +46,9 @@ def d_cube(x):
 # ============================================================
 a = 0       # Fractal domain starts at 0 (negatives → 0)
 b = 1       # Fractal domain ends at b (above b → classical)
-n_subintervals = 6
+n_subintervals = 3
 n_iter = 2
-alpha = [0, 0, 0, 0.01, 0.02, 0.03]
+alpha = [ 0.1, 0.2, 0.3]
 
 
 # ============================================================
@@ -131,7 +131,7 @@ class CNNModel(nn.Module):
                  activation,                 # Activation function
                  dropout,                    # Dropout rate (optional)
                  use_batchnorm,              # Whether to use batch norm (optional)
-                 input_shape=(3, 256, 256),  # Input shape compatible with iNaturalist dataset
+                 input_shape=(3, 192, 192),  # Input shape compatible with iNaturalist dataset (192x192)
                  dense_units=256,            # Number of neurons in the dense (fully connected) layer
                  num_classes=10):            # Output layer with 10 neurons
 
