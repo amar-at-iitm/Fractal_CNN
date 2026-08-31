@@ -1,5 +1,5 @@
 sweep_config = {
-    "method": "bayes",
+    "method": "grid",
     "metric": {"name": "val_acc", "goal": "maximize"},
     "parameters": {
         "filters_per_layer": {
