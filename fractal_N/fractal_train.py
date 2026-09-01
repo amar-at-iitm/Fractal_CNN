@@ -29,7 +29,7 @@ def train():
     wandb.init()
     config = wandb.config
     # Generating a meaningful run name using config values
-    run_name = f"run_filters-{config.filters_per_layer}_act-{config.activation}_bs-{config.batch_size}_lr-{config.learning_rate}_do-{config.dropout_rate}_bn-{config.use_batchnorm}_aug-{config.augmentation}"
+    run_name = f"run_a1-{config.alpha1}_a2-{config.alpha2}_filters-{config.filters_per_layer}_act-{config.activation}_bs-{config.batch_size}_lr-{config.learning_rate}_do-{config.dropout_rate}_bn-{config.use_batchnorm}_aug-{config.augmentation}"
     wandb.run.name = run_name
     # wandb.run.save()
 
@@ -70,6 +70,8 @@ def train():
         activation=config.activation,
         dropout=config.dropout_rate,
         use_batchnorm=config.use_batchnorm,
+        alpha1=config.alpha1,
+        alpha2=config.alpha2,
         input_shape=(3, 192, 192)
     )
     model.to(device)
