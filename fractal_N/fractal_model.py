@@ -1,5 +1,3 @@
-# fractal_model.py  (fractal_N variant — nonzero-part-only fractalization)
-
 import sys
 from pathlib import Path
 
@@ -46,10 +44,8 @@ def d_cube(x):
 # ============================================================
 a = 0       # Fractal domain starts at 0 (negatives → 0)
 b = 1       # Fractal domain ends at b (above b → classical)
-n_subintervals = 3
+n_subintervals = 2
 n_iter = 2
-alpha = [ 0.1, 0.2, 0.3]
-
 
 # ============================================================
 # Base functions g for the RB operator (must differ from f).
@@ -90,40 +86,6 @@ def dg_square(x):
 def dg_cube(x):
     return d_cube(x) + _d_perturbation(x)
 
-
-# ============================================================
-# Precompute fractal versions of x, x², x³ on [0, b].
-# ============================================================
-identity_fractal = alpha_fractalize(identity, g_identity, a, b, n_subintervals, alpha, n_iter, True)
-d_identity_fractal = alpha_fractalize_first_derivative(d_identity, dg_identity, a, b, n_subintervals, alpha, n_iter, True)
-
-square_fractal = alpha_fractalize(square, g_square, a, b, n_subintervals, alpha, n_iter, True)
-d_square_fractal = alpha_fractalize_first_derivative(d_square, dg_square, a, b, n_subintervals, alpha, n_iter, True)
-
-cube_fractal = alpha_fractalize(cube, g_cube, a, b, n_subintervals, alpha, n_iter, True)
-d_cube_fractal = alpha_fractalize_first_derivative(d_cube, dg_cube, a, b, n_subintervals, alpha, n_iter, True)
-
-
-# ============================================================
-# Helper function to get a fractal activation nn.Module by name.
-# Returns an nn.Module that can be used in nn.Sequential.
-#
-# Three-zone behavior per module:
-#   x < 0      → 0
-#   0 ≤ x ≤ b  → fractal interpolation
-#   x > b      → classical  x / x² / x³
-# ============================================================
-def get_activation(name):
-    name = name.lower()
-    if name == 'f_relu':
-        return FractalActivationN(identity_fractal, lambda x: x)
-    if name == 'f_squared_relu':
-        return FractalActivationN(square_fractal, lambda x: x ** 2)
-    if name == 'f_cubic_relu':
-        return FractalActivationN(cube_fractal, lambda x: x ** 3)
-    raise ValueError(f"Unsupported activation: {name}")
-
-
 class CNNModel(nn.Module):
     def __init__(self,
                  filters,                    # List of filters => Controls number of conv layers and filter sizes
@@ -131,11 +93,29 @@ class CNNModel(nn.Module):
                  activation,                 # Activation function
                  dropout,                    # Dropout rate (optional)
                  use_batchnorm,              # Whether to use batch norm (optional)
+                 alpha1=0.2,                 # Alpha 1 for fractalization
+                 alpha2=0.2,                 # Alpha 2 for fractalization
                  input_shape=(3, 192, 192),  # Input shape compatible with iNaturalist dataset (192x192)
                  dense_units=256,            # Number of neurons in the dense (fully connected) layer
                  num_classes=10):            # Output layer with 10 neurons
 
         super().__init__()
+        
+        alpha = [alpha1, alpha2]
+        identity_fractal = alpha_fractalize(identity, g_identity, a, b, n_subintervals, alpha, n_iter, True)
+        square_fractal = alpha_fractalize(square, g_square, a, b, n_subintervals, alpha, n_iter, True)
+        cube_fractal = alpha_fractalize(cube, g_cube, a, b, n_subintervals, alpha, n_iter, True)
+        
+        def get_activation(name):
+            name = name.lower()
+            if name == 'f_relu':
+                return FractalActivationN(identity_fractal, lambda x: x)
+            if name == 'f_squared_relu':
+                return FractalActivationN(square_fractal, lambda x: x ** 2)
+            if name == 'f_cubic_relu':
+                return FractalActivationN(cube_fractal, lambda x: x ** 3)
+            raise ValueError(f"Unsupported activation: {name}")
+
         layers = []
         in_channels = input_shape[0]
 
