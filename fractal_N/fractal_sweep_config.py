@@ -2,22 +2,23 @@ sweep_config = {
     "method": "grid",
     "metric": {"name": "val_acc", "goal": "maximize"},
     "parameters": {
+        "alpha1" : {
+            "values": [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45]}, 
+        "alpha2" : {
+            "values": [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45]},
         "filters_per_layer": {
             "values": [
-                [32, 64, 128, 256, 512],
-                [64, 128, 256, 512, 512],
-                [64, 64, 128, 128, 256],
-                [32, 64, 64, 128, 256]
+                [32, 64, 128, 256, 512]
             ]
         },
         "activation": {
-            "values": ["f_relu", "f_squared_relu", "f_cubic_relu"]
+            "values": ["f_relu"]
         },
         "use_batchnorm": {
             "values": [True, False]
         },
         "dropout_rate": {
-            "values": [0.2, 0.3]
+            "values": [0.2]
         },
         "dense_units": {
             "values": [128, 256, 512]
@@ -26,13 +27,13 @@ sweep_config = {
             "values": [True, False]
         },
         "batch_size": {
-            "values": [32, 64]
+            "values": [32]
         },
         "learning_rate": {
-            "values": [1e-3, 3e-4, 1e-4]
+            "values": [1e-3, 1e-4, 1e-5]
         },
         "epochs": {
-            "values": [10, 15, 20]
+            "values": [10]
         }
     }
 }
