@@ -1,5 +1,11 @@
 # Data folders
 inaturalist_12K/
+cifar10/
+cifar100/
+svhn/
+tiny_imagenet/
+data/
+
 
 # Wandb files
 wandb/
