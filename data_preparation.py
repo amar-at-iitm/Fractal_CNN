@@ -472,15 +472,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dataset",
         type=str,
-        default="all",
+        default="cifar10",
         choices=["cifar10", "cifar100", "svhn", "tiny-imagenet", "inaturalist", "all"],
-        help="Dataset to prepare: 'cifar10', 'cifar100', 'svhn', 'tiny-imagenet', 'inaturalist', or 'all' (default: all)"
+        help="Dataset to prepare: 'cifar10' (default), 'cifar100', 'svhn', 'tiny-imagenet', 'inaturalist', or 'all'"
     )
     parser.add_argument(
         "--data_dir",
         type=str,
-        default="./data",
-        help="Base root directory for storing datasets (default: ./data)"
+        default=".",
+        help="Base directory for storing datasets (default: '.' - current project folder)"
     )
     parser.add_argument(
         "--val_ratio",
@@ -496,8 +496,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    os.makedirs(args.data_dir, exist_ok=True)
-
+    # Map dataset keys to target folders directly in data_dir
     if args.dataset in ["cifar10", "all"]:
         prepare_cifar10(root_dir=os.path.join(args.data_dir, "cifar10"), val_ratio=args.val_ratio, seed=args.seed)
 
@@ -511,10 +510,31 @@ if __name__ == "__main__":
         prepare_tiny_imagenet(root_dir=os.path.join(args.data_dir, "tiny_imagenet"), val_ratio=args.val_ratio, seed=args.seed)
 
     if args.dataset in ["inaturalist", "all"]:
-        prepare_inaturalist(root_dir="inaturalist_12K", val_ratio=args.val_ratio, seed=args.seed)
+        prepare_inaturalist(root_dir=os.path.join(args.data_dir, "inaturalist_12K"), val_ratio=args.val_ratio, seed=args.seed)
 
     print("\n" + "=" * 65)
-    print("All requested dataset preparation and split tasks completed!")
-    print("Every prepared dataset now contains 'train/', 'val/', and 'test/'")
-    print("subdirectories ready for PyTorch torchvision.datasets.ImageFolder.")
+    print("✓ Dataset preparation and train/val/test splits completed!")
     print("=" * 65)
+    print("\n[NEXT STEPS FOR TRAINING]")
+    if args.dataset == "cifar10":
+        print("In your training script (fractal_train.py or train.py):")
+        print("  1. Update data_root:   data_root = PROJECT_ROOT / \"cifar10\"")
+        print("  2. Update input_shape: input_shape = (3, 32, 32)")
+        print("  3. Set num_classes:    num_classes = len(train_data.classes)  # (10 classes)")
+    elif args.dataset == "cifar100":
+        print("In your training script (fractal_train.py or train.py):")
+        print("  1. Update data_root:   data_root = PROJECT_ROOT / \"cifar100\"")
+        print("  2. Update input_shape: input_shape = (3, 32, 32)")
+        print("  3. Set num_classes:    num_classes = len(train_data.classes)  # (100 classes - REQUIRED!)")
+    elif args.dataset == "svhn":
+        print("In your training script (fractal_train.py or train.py):")
+        print("  1. Update data_root:   data_root = PROJECT_ROOT / \"svhn\"")
+        print("  2. Update input_shape: input_shape = (3, 32, 32)")
+        print("  3. Set num_classes:    num_classes = len(train_data.classes)  # (10 classes)")
+        print("  * Note: Disable RandomHorizontalFlip in src/tools.py for SVHN digits.")
+    elif args.dataset == "tiny-imagenet":
+        print("In your training script (fractal_train.py or train.py):")
+        print("  1. Update data_root:   data_root = PROJECT_ROOT / \"tiny_imagenet\"")
+        print("  2. Update input_shape: input_shape = (3, 64, 64)")
+        print("  3. Set num_classes:    num_classes = len(train_data.classes)  # (200 classes - REQUIRED!)")
+    print("=" * 65 + "\n")
