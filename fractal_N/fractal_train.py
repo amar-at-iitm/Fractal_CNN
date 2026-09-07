@@ -20,36 +20,12 @@ from torchvision import transforms, datasets
 from tqdm import tqdm
 from fractal_model import CNNModel
 from fractal_sweep_config import sweep_config
+from src.tools import get_transforms
 
 # Enable cuDNN benchmark for faster convolutions on fixed input resolutions
 if torch.cuda.is_available():
     torch.backends.cudnn.benchmark = True
 
-# CIFAR-10 dataset statistics for normalization
-CIFAR10_MEAN = (0.4914, 0.4822, 0.4465)
-CIFAR10_STD = (0.2470, 0.2435, 0.2616)
-
-# Transforms
-def get_transforms(augmentation):
-    if augmentation:
-        train_transform = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1),
-            transforms.ToTensor(),
-            transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD),
-        ])
-    else:
-        train_transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD),
-        ])
-    
-    val_transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD),
-    ])
-    return train_transform, val_transform
 
 # Training function
 def train():
@@ -58,8 +34,8 @@ def train():
     config = wandb.config
 
     # Read alpha values with safe defaults
-    alpha1 = getattr(config, 'alpha1', 0.2)
-    alpha2 = getattr(config, 'alpha2', 0.2)
+    alpha1 = config.alpha1 
+    alpha2 = config.alpha2 
 
     # Generating a meaningful run name using config values
     run_name = f"run_a1-{alpha1}_a2-{alpha2}_filters-{config.filters_per_layer}_act-{config.activation}_bs-{config.batch_size}_lr-{config.learning_rate}_do-{config.dropout_rate}_bn-{config.use_batchnorm}_aug-{config.augmentation}"
