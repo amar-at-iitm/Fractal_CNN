@@ -5,10 +5,10 @@ sweep_config = {
     "metric": {"name": "val_acc", "goal": "maximize"},
     "parameters": {
         "alpha1": {
-            "values": [0.1, 0.2, 0.25]        # Scale parameter 1 for fractal roughness
+            "values": [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45]        # Scale parameter 1 for fractal roughness
         },
         "alpha2": {
-            "values": [0.1, 0.2, 0.25]        # Scale parameter 2 for fractal roughness
+            "values": [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45]        # Scale parameter 2 for fractal roughness
         },
         "filters_per_layer": {
             "values": [
