@@ -1,41 +1,39 @@
+# sweep_config.py
+
 sweep_config = {
     "method": "grid",
     "metric": {"name": "val_acc", "goal": "maximize"},
     "parameters": {
         "filters_per_layer": {
             "values": [
-                            [32, 32, 64, 64, 128, 256, 512]
-                        ]
-            # "values": [
-            #     [32, 64, 128, 256, 512],
-            #     [64, 128, 256, 512, 512],
-            #     [64, 64, 128, 128, 256],
-            #     [32, 64, 64, 128, 256]
-            # ]
+                [64, 128, 256, 512],       # High-capacity 4-layer CNN (optimal spatial resolution 2x2)
+                [32, 64, 128, 256, 512]     # Deep 5-layer CNN (spatial resolution 1x1)
+            ]
         },
         "activation": {
-            "values": ["relu"] #, "squared_relu", "cubic_relu"]
+            "values": ["relu"]             # Classical baseline
         },
         "use_batchnorm": {
-            "values": [True] #, False]
+            "values": [True]               # BatchNorm is critical for fast convergence & high accuracy
         },
         "dropout_rate": {
-            "values": [0.2, 0.3]
+            "values": [0.2, 0.3]           # Optimal regularization with BatchNorm
         },
         "dense_units": {
-            "values": [128, 256, 512]
+            "values": [256, 512]           # Classifier head capacity
         },
         "augmentation": {
-            "values": [True] #, False]
+            "values": [True]               # Mandatory on CIFAR-10 (RandomCrop + Flip)
         },
         "batch_size": {
-            "values": [32] #, 64]
+            "values": [64]                 # Optimal batch size for 40k training images
         },
         "learning_rate": {
-            "values": [1e-3, 3e-4, 1e-4]
+            "values": [1e-3, 5e-4]         # Sweet spot for Adam with BatchNorm
         },
         "epochs": {
-            "values": [10]
+            "values": [15]                 # 15 epochs allows convergence to 80-86%+ on CIFAR-10
         }
     }
 }
+

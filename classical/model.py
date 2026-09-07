@@ -27,9 +27,9 @@ class CNNModel(nn.Module):
                  activation,            # Activation function  
                  dropout,               # Dropout rate (optional)
                  use_batchnorm,         # Whether to use batch norm (optional)
-                 input_shape=(3, 192, 192),  # Input shape compatible with iNaturalist dataset (192x192)
-                 dense_units=256,       # Number of neurons in the dense (fully connected) layer  
-                 num_classes=10):       # Output layer with 10 neurons  
+                 input_shape,           # Input shape (channels, height, width)
+                 dense_units,           # Number of neurons in the dense (fully connected) layer  
+                 num_classes):          # Output layer (number of classification categories)  
 
         super().__init__()
         layers = []
