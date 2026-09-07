@@ -228,6 +228,7 @@ def train():
         print(f"★ New global best model saved! Validation Accuracy: {val_acc*100:.2f}%")
         print(f"Hyperparameters recorded in: {global_best_path}")
 
+    wandb.finish()
     print("Training run complete.")
 
 # Run wandb agent with sweep
