@@ -95,7 +95,7 @@ class CNNModel(nn.Module):
                  use_batchnorm,              # Whether to use batch norm (optional)
                  alpha1=0.2,                 # Alpha 1 for fractalization
                  alpha2=0.2,                 # Alpha 2 for fractalization
-                 input_shape=(3, 192, 192),  # Input shape compatible with iNaturalist dataset (192x192)
+                 input_shape=(3, 32, 32),    # Input shape compatible with CIFAR-10 dataset (32x32)
                  dense_units=256,            # Number of neurons in the dense (fully connected) layer
                  num_classes=10):            # Output layer with 10 neurons
 
