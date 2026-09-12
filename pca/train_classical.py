@@ -29,7 +29,7 @@ if torch.cuda.is_available():
 # ==============================================================================
 # Hyperparameters and Configuration (Hardcoded for direct execution)
 # ==============================================================================
-DATASET_NAME = "inaturalist12K"           # Dataset name
+DATASET_NAME = "inaturalist_12K"           # Dataset name
 DATASET_DIR_NAME = f"{DATASET_NAME}_pcs"
 DATA_ROOT = PROJECT_ROOT / DATASET_DIR_NAME
 
