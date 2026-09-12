@@ -27,7 +27,7 @@ classical_sweep_config = {
             "values": [256, 512]
         },
         "batch_size": {
-            "values": [64, 128]
+            "values": [32]
         },
         "learning_rate": {
             "values": [1e-3, 5e-4]
