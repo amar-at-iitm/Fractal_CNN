@@ -1,9 +1,14 @@
 # Data folders
 inaturalist_12K/
+inaturalist_12K_pcs/
 cifar10/
+cifar10_pcs/
 cifar100/
+cifiar100_pcs/
 svhn/
+svhn_pcs/
 tiny_imagenet/
+tiny_imagenet_pcs/
 data/
 
 
