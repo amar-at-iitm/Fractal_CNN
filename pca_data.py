@@ -434,20 +434,35 @@ def process_and_save_pca_dataset(
 
     # Fit PCA model
     global_pca = None
-    if pca_mode == "global":
-        train_loader = DataLoader(
-            raw_splits["train"],
-            batch_size=batch_size,
-            shuffle=False,
-            transform=transforms.ToTensor()
-        )
+    if pca_mode == "global" or (pca_mode == "channel" and n_components < H * W):
+        print(f"\n[PCA FITTING] Fitting PCA across training split to retain top {n_components} principal features...")
+        
+        # Generator dataset that yields appropriate representation for PCA fitting
+        class PCAFitDataset(Dataset):
+            def __init__(self, raw_ds, mode):
+                self.raw_ds = raw_ds
+                self.mode = mode
+            def __len__(self):
+                return len(self.raw_ds)
+            def __getitem__(self, idx):
+                img, _ = self.raw_ds[idx]
+                arr = np.array(img.convert("RGB")).transpose(2, 0, 1).astype(np.float32) / 255.0
+                if self.mode == "global":
+                    return torch.from_numpy(arr.reshape(-1))
+                else:
+                    arr_chan = pca_channel_per_image(arr, n_components=1)
+                    return torch.from_numpy(arr_chan)
+
+        fit_dataset = PCAFitDataset(raw_splits["train"], mode=pca_mode)
+        fit_loader = DataLoader(fit_dataset, batch_size=batch_size, shuffle=False)
+
         global_pca = GlobalPCA(n_components=n_components)
-        global_pca.fit(train_loader)
+        global_pca.fit(fit_loader)
         with open(output_dir / "pca_model.pkl", "wb") as f:
             pickle.dump(global_pca, f)
         out_dim_1d = n_components
     else:
-        out_dim_1d = n_components
+        out_dim_1d = H * W
 
     print(f"Projected 1D representation length: {out_dim_1d}")
 
@@ -475,9 +490,13 @@ def process_and_save_pca_dataset(
             if pca_mode == "global":
                 arr_flat = img_np.reshape(-1)
                 arr_1d = global_pca.transform(arr_flat)
+            elif global_pca is not None:
+                # Channel mode with top x% features: channel projection followed by top principal components
+                arr_chan = pca_channel_per_image(img_np, n_components=1)
+                arr_1d = global_pca.transform(arr_chan)
             else:
-                arr_full = pca_channel_per_image(img_np, n_components=1)
-                arr_1d = arr_full[:n_components]
+                # Channel mode with 100% features: full 1D channel-projected sequence
+                arr_1d = pca_channel_per_image(img_np, n_components=1)
 
             dest_file = dest_split_dir / cls_name / f"{file_stem}.npy"
             np.save(dest_file, arr_1d)
