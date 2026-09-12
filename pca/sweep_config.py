@@ -15,7 +15,7 @@ classical_sweep_config = {
             "values": [5, 7]             # 1D kernel size (5 or 7 gives wide receptive field)
         },
         "activation": {
-            "values": ["relu", "squared_relu", "cubic_relu"]
+            "values": ["relu"]
         },
         "use_batchnorm": {
             "values": [True]
@@ -59,7 +59,7 @@ fractal_sweep_config = {
             "values": [5, 7]
         },
         "activation": {
-            "values": ["f_relu", "f_squared_relu", "f_cubic_relu"]
+            "values": ["f_relu"]
         },
         "use_batchnorm": {
             "values": [True]
