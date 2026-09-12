@@ -260,7 +260,7 @@ def train():
 # ==============================================================================
 
 if __name__ == "__main__":
-    wandb.login(key="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")    
+    wandb.login(key="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")    
     sweep_id = wandb.sweep(classical_sweep_config, project=WANDB_PROJECT)
     wandb.agent(sweep_id, function=train)
     wandb.finish()
