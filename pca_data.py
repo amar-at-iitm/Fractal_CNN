@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import pickle
+import argparse
 from pathlib import Path
 from tqdm import tqdm
 from PIL import Image
@@ -38,7 +39,7 @@ except ImportError as e:
 
 
 # ==============================================================================
-# DATASET CONFIGURATION (Change dataset name and parameters here)
+# DEFAULT CONFIGURATION (Can be changed here or overridden via CLI)
 # ==============================================================================
 # Supported DATASET_NAME options:
 #   - "cifar10"
@@ -48,15 +49,17 @@ except ImportError as e:
 #   - "inaturalist"   (or "inaturalist_12K")
 DATASET_NAME = "cifar10"
 
-# PCA Mode:
-#   - "channel": Per-image PCA: projects (C, H, W) -> 1D sequence of length H*W (or H*W * n_components)
-#   - "global" : Dataset-wide PCA: flattens (C*H*W) -> 1D feature vector of length n_components
-PCA_MODE = "channel"
+# Percentage of top features to retain (e.g. 20 for 20%, 10 for 10%).
+# If set to None, N_COMPONENTS will be used directly.
+TOP_FEATURES_PCT = 20.0
 
-# Number of principal components:
-#   - For "channel" mode: 1 yields a 1D vector of length H*W per image
-#   - For "global" mode : e.g. 64 or 128 yields a 1D vector of length n_components
-N_COMPONENTS = 1
+# Number of principal components (used if TOP_FEATURES_PCT is None):
+N_COMPONENTS = None
+
+# PCA Mode:
+#   - "global" : Dataset-wide PCA on (C*H*W) flattened images -> extracts top x% features [Default]
+#   - "channel": Per-image channel PCA: projects (C, HW) -> 1D sequence of length H*W
+PCA_MODE = "global"
 
 # Split ratio and random seed (used if data preparation is triggered)
 VAL_RATIO = 0.2
@@ -100,7 +103,6 @@ def check_splits_populated(dataset_dir: Path) -> bool:
         split_path = dataset_dir / split
         if not split_path.exists() or not split_path.is_dir():
             return False
-        # Check if split contains at least one class directory with files
         has_files = False
         for root, _, files in os.walk(split_path):
             if any(f.lower().endswith((".png", ".jpg", ".jpeg")) for f in files):
@@ -115,7 +117,6 @@ def check_inaturalist_transformed(dataset_dir: Path, target_size=(192, 192)) -> 
     """Check if iNaturalist images have been properly cropped to target_size."""
     if not check_splits_populated(dataset_dir):
         return False
-    # Sample a few images from train split to inspect resolution
     train_dir = dataset_dir / "train"
     image_extensions = (".jpg", ".jpeg", ".png")
     sample_count = 0
@@ -146,9 +147,7 @@ def check_and_prepare_dataset(dataset_name: str, root_dir: Path, val_ratio: floa
     print(f"Checking dataset status: '{dataset_name}' -> Directory: {dataset_path}")
     print("=" * 70)
 
-    # --------------------------------------------------------------------------
-    # 1. CIFAR-10
-    # --------------------------------------------------------------------------
+    # CIFAR-10
     if dir_name == "cifar10":
         if check_splits_populated(dataset_path):
             print(f"✓ CIFAR-10 is already prepared and verified in {dataset_path}.")
@@ -157,9 +156,7 @@ def check_and_prepare_dataset(dataset_name: str, root_dir: Path, val_ratio: floa
             print("  Invoking prepare_cifar10 from data_preparation.py...")
             prepare_cifar10(root_dir=str(dataset_path), val_ratio=val_ratio, seed=seed)
 
-    # --------------------------------------------------------------------------
-    # 2. CIFAR-100
-    # --------------------------------------------------------------------------
+    # CIFAR-100
     elif dir_name == "cifar100":
         if check_splits_populated(dataset_path):
             print(f"✓ CIFAR-100 is already prepared and verified in {dataset_path}.")
@@ -168,9 +165,7 @@ def check_and_prepare_dataset(dataset_name: str, root_dir: Path, val_ratio: floa
             print("  Invoking prepare_cifar100 from data_preparation.py...")
             prepare_cifar100(root_dir=str(dataset_path), val_ratio=val_ratio, seed=seed)
 
-    # --------------------------------------------------------------------------
-    # 3. SVHN
-    # --------------------------------------------------------------------------
+    # SVHN
     elif dir_name == "svhn":
         if check_splits_populated(dataset_path):
             print(f"✓ SVHN is already prepared and verified in {dataset_path}.")
@@ -179,14 +174,10 @@ def check_and_prepare_dataset(dataset_name: str, root_dir: Path, val_ratio: floa
             print("  Invoking prepare_svhn from data_preparation.py...")
             prepare_svhn(root_dir=str(dataset_path), val_ratio=val_ratio, seed=seed)
 
-    # --------------------------------------------------------------------------
-    # 4. Tiny ImageNet
-    # --------------------------------------------------------------------------
+    # Tiny ImageNet
     elif dir_name == "tiny_imagenet":
         zip_in_root = root_dir / "tiny-imagenet-200.zip"
         zip_in_dir = dataset_path / "tiny-imagenet-200.zip"
-        
-        # Move zip from project root to dataset_path if present in root
         if zip_in_root.exists() and not zip_in_dir.exists():
             os.makedirs(dataset_path, exist_ok=True)
             zip_in_root.rename(zip_in_dir)
@@ -201,13 +192,10 @@ def check_and_prepare_dataset(dataset_name: str, root_dir: Path, val_ratio: floa
             print("  Invoking prepare_tiny_imagenet from data_preparation.py...")
             prepare_tiny_imagenet(root_dir=str(dataset_path), val_ratio=val_ratio, seed=seed)
 
-    # --------------------------------------------------------------------------
-    # 5. iNaturalist-12K
-    # --------------------------------------------------------------------------
+    # iNaturalist-12K
     elif dir_name == "inaturalist_12K":
         zip_in_root = root_dir / "nature_12K.zip"
         zip_in_dir = dataset_path / "nature_12K.zip"
-
         if zip_in_root.exists():
             print(f"✓ Found nature_12K.zip in root directory: {zip_in_root}")
         elif zip_in_dir.exists():
@@ -225,9 +213,7 @@ def check_and_prepare_dataset(dataset_name: str, root_dir: Path, val_ratio: floa
                 print("  Invoking prepare_inaturalist from data_preparation.py...")
                 prepare_inaturalist(root_dir=str(dataset_path), val_ratio=val_ratio, seed=seed)
 
-    # --------------------------------------------------------------------------
     # Custom / Unknown Dataset
-    # --------------------------------------------------------------------------
     else:
         if check_splits_populated(dataset_path):
             print(f"✓ Custom dataset '{dataset_name}' found and populated in {dataset_path}.")
@@ -248,67 +234,48 @@ def check_and_prepare_dataset(dataset_name: str, root_dir: Path, val_ratio: floa
 def pca_channel_per_image(img_array: np.ndarray, n_components: int = 1) -> np.ndarray:
     """
     Per-Image Channel PCA:
-    Converts a single 3D image array of shape (C, H, W) to a 1D sequence using PCA.
-    
-    Steps:
-      1. Reshape (C, H, W) to (H*W, C).
-      2. Compute mean of each channel and center the pixels: X_c = X - mean.
-      3. Compute covariance matrix (C x C) and its SVD/eigendecomposition.
-      4. Project the pixels onto the top principal component(s): (H*W, C) @ (C, n_components) -> (H*W, n_components).
-      5. Flatten to 1D representation of length (H*W * n_components) [default: H*W].
+    Converts a single 3D image array of shape (C, H, W) to 1D using PCA across channels.
     """
-    if img_array.ndim == 2:  # Grayscale (H, W) -> treat as (1, H, W)
+    if img_array.ndim == 2:
         img_array = img_array[np.newaxis, ...]
 
     C, H, W = img_array.shape
     HW = H * W
 
-    # If already single channel, reshape directly to 1D
     if C == 1:
         return img_array.reshape(-1).astype(np.float32)
 
-    # Reshape to (HW, C)
-    X = img_array.reshape(C, HW).T.astype(np.float32)  # (HW, C)
-
-    # Center channels
+    X = img_array.reshape(C, HW).T.astype(np.float32)
     mean = np.mean(X, axis=0, keepdims=True)
     X_centered = X - mean
 
-    # C x C Covariance matrix (typically 3 x 3 for RGB)
     cov = np.dot(X_centered.T, X_centered) / max(HW - 1, 1)
-
-    # SVD on 3x3 covariance matrix
     U, S, Vt = np.linalg.svd(cov)
-    # Principal components (eigenvectors): shape (C, n_components)
     components = Vt[:n_components, :].T
 
-    # Project to 1D representation
-    X_pca = np.dot(X_centered, components)  # shape (HW, n_components)
-
-    # Flatten to 1D array
+    X_pca = np.dot(X_centered, components)
     out_1d = X_pca.reshape(-1)
     return out_1d.astype(np.float32)
 
 
 class GlobalPCA:
     """
-    Dataset-wide PCA using Incremental SVD / PCA on flattened images (C * H * W).
-    Flattens each image from 3D (C, H, W) to a vector of length D = C*H*W,
-    fits PCA across training images, and transforms each image to 1D feature vector of length n_components.
+    Dataset-wide PCA on flattened images (C * H * W).
+    Projects images onto the top n_components (top x% features) explaining the maximum variance.
     """
-    def __init__(self, n_components: int = 64):
+    def __init__(self, n_components: int):
         self.n_components = n_components
         self.mean_ = None
         self.components_ = None
         self.explained_variance_ = None
+        self.explained_variance_ratio_ = None
 
     def fit(self, dataloader: DataLoader, desc: str = "Fitting Global PCA"):
-        """Fit PCA using PyTorch SVD on mini-batches or accumulated covariance."""
         print(f"Fitting Global PCA (n_components={self.n_components})...")
         total_samples = 0
         mean_accum = None
 
-        # First pass: compute global mean
+        # Pass 1: Compute dataset mean vector
         for images, _ in tqdm(dataloader, desc=f"{desc} (Mean)"):
             B = images.size(0)
             X = images.view(B, -1).numpy().astype(np.float64)
@@ -320,36 +287,46 @@ class GlobalPCA:
 
         self.mean_ = (mean_accum / total_samples).astype(np.float32)
         D = len(self.mean_)
+        self.n_components = min(self.n_components, D, total_samples)
 
-        # Second pass: approximate covariance matrix via Gram matrix or Incremental SVD
+        # Pass 2: IncrementalPCA or Batch Covariance SVD
         try:
             from sklearn.decomposition import IncrementalPCA
-            ipca = IncrementalPCA(n_components=min(self.n_components, D), batch_size=dataloader.batch_size)
+            ipca = IncrementalPCA(n_components=self.n_components, batch_size=dataloader.batch_size)
             for images, _ in tqdm(dataloader, desc=f"{desc} (IncrementalPCA)"):
                 B = images.size(0)
                 X = images.view(B, -1).numpy().astype(np.float32)
                 ipca.partial_fit(X)
             self.components_ = ipca.components_.astype(np.float32)
-            self.explained_variance_ = ipca.explained_variance_ratio_.astype(np.float32)
+            self.explained_variance_ = ipca.explained_variance_.astype(np.float32)
+            self.explained_variance_ratio_ = ipca.explained_variance_ratio_.astype(np.float32)
         except ImportError:
-            # Fallback: PyTorch low-rank PCA on sample batch
-            print("  sklearn not found. Using PyTorch SVD fallback...")
-            sample_tensors = []
-            max_sample_count = 5000
-            collected = 0
-            for images, _ in dataloader:
-                B = images.size(0)
-                sample_tensors.append(images.view(B, -1))
-                collected += B
-                if collected >= max_sample_count:
-                    break
-            X_all = torch.cat(sample_tensors, dim=0)[:max_sample_count].float()
-            X_centered = X_all - torch.from_numpy(self.mean_)
-            _, _, V = torch.pca_lowrank(X_centered, q=self.n_components)
-            self.components_ = V.t().numpy().astype(np.float32)
-            self.explained_variance_ = np.ones(self.n_components, dtype=np.float32) / self.n_components
+            print("  sklearn not found. Using PyTorch exact covariance SVD...")
+            cov = torch.zeros((D, D), dtype=torch.float64)
+            mean_tensor = torch.from_numpy(self.mean_).double()
 
-        print("✓ Global PCA fitting complete.")
+            for images, _ in tqdm(dataloader, desc=f"{desc} (Covariance)"):
+                B = images.size(0)
+                X = images.view(B, -1).double() - mean_tensor
+                cov += torch.mm(X.t(), X)
+
+            cov /= max(total_samples - 1, 1)
+            eigenvalues, eigenvectors = torch.linalg.eigh(cov)
+            
+            # Sort descending
+            eigenvalues = eigenvalues.flip(dims=[0])
+            eigenvectors = eigenvectors.flip(dims=[1])
+
+            top_evals = eigenvalues[:self.n_components].float().numpy()
+            top_evecs = eigenvectors[:, :self.n_components].t().float().numpy()
+
+            self.components_ = top_evecs
+            self.explained_variance_ = top_evals
+            total_var = float(eigenvalues.sum())
+            self.explained_variance_ratio_ = (top_evals / max(total_var, 1e-9)).astype(np.float32)
+
+        cum_var = float(np.sum(self.explained_variance_ratio_)) * 100.0
+        print(f"✓ Global PCA fitted: {self.n_components} components explain {cum_var:.2f}% of total dataset variance.")
 
     def transform(self, img_flat: np.ndarray) -> np.ndarray:
         """Transform a single flattened image (D,) to 1D vector (n_components,)."""
@@ -365,8 +342,10 @@ class GlobalPCA:
 def process_and_save_pca_dataset(
     dataset_name: str = DATASET_NAME,
     root_dir: Path = PROJECT_ROOT,
-    pca_mode: str = PCA_MODE,
+    top_features_pct: float = TOP_FEATURES_PCT,
     n_components: int = N_COMPONENTS,
+    pca_mode: str = PCA_MODE,
+    output_dir_name: str = None,
     overwrite: bool = OVERWRITE,
     val_ratio: float = VAL_RATIO,
     seed: int = SEED,
@@ -375,12 +354,11 @@ def process_and_save_pca_dataset(
     """
     Main function to:
       1. Check and prepare the source dataset using data_preparation.py if needed.
-      2. Create the destination folder: '<dataset_dir>_pcs' in the root directory.
-      3. Convert each 3D (C, H, W) image to 1D using PCA.
-      4. Save per-sample .npy in train/val/test class directories, consolidated .npy arrays,
-         and metadata.json.
+      2. Calculate the top x% of features (n_components).
+      3. Create destination folder: '<dataset_dir>_pcs' in root directory.
+      4. Convert each 3D (C, H, W) image to 1D with top x% features using PCA.
+      5. Save per-sample .npy files, consolidated .npy arrays, and metadata.json.
     """
-    # Step 1: Ensure dataset exists and splits are populated
     dataset_dir = check_and_prepare_dataset(
         dataset_name=dataset_name,
         root_dir=root_dir,
@@ -388,26 +366,13 @@ def process_and_save_pca_dataset(
         seed=seed
     )
 
-    # Output directory in the root directory with '_pcs' suffix
-    out_dir_name = f"{dataset_dir.name}_pcs"
-    output_dir = root_dir / out_dir_name
+    # Determine destination folder
+    if output_dir_name is not None and output_dir_name.strip():
+        output_dir = root_dir / output_dir_name.strip()
+    else:
+        output_dir = root_dir / f"{dataset_dir.name}_pcs"
 
-    print("\n" + "=" * 70)
-    print(f"Target Output Directory: {output_dir}")
-    print(f"PCA Mode: '{pca_mode}' | Components: {n_components}")
-    print("=" * 70)
-
-    # Check if output already exists
-    if output_dir.exists() and not overwrite:
-        metadata_file = output_dir / "metadata.json"
-        if metadata_file.exists() and check_splits_populated(output_dir):
-            print(f"✓ PCA dataset already exists in {output_dir}. Skipping computation.")
-            print("  (Set OVERWRITE = True to regenerate)")
-            return output_dir
-
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Load splits using ImageFolder (to obtain classes, image paths, and labels)
+    # Load splits using ImageFolder
     raw_splits = {}
     for split in ["train", "val", "test"]:
         split_path = dataset_dir / split
@@ -423,9 +388,51 @@ def process_and_save_pca_dataset(
     sample_img, _ = raw_splits["train"][0]
     sample_np = np.array(sample_img.convert("RGB")).transpose(2, 0, 1)  # (C, H, W)
     C, H, W = sample_np.shape
-    print(f"Original image shape: ({C}, {H}, {W}) [Channels, Height, Width]")
+    total_original_features = C * H * W
+    print(f"Original image shape: ({C}, {H}, {W}) -> Total Raw Features: {total_original_features}")
 
-    # If global PCA mode is selected, fit global PCA on training split
+    # Calculate number of components based on top_features_pct or n_components
+    if top_features_pct is not None:
+        pct_val = top_features_pct / 100.0 if top_features_pct > 1.0 else top_features_pct
+        pct_display = pct_val * 100.0
+        if pca_mode == "global":
+            calculated_k = max(1, min(total_original_features, int(round(total_original_features * pct_val))))
+        else:
+            calculated_k = max(1, min(H * W, int(round((H * W) * pct_val))))
+        n_components = calculated_k
+        print(f"[PCA CONFIG] Retaining top {pct_display:.1f}% of features -> {n_components} components (out of {total_original_features})")
+    elif n_components is not None:
+        n_components = max(1, min(total_original_features, n_components))
+        pct_display = (n_components / total_original_features) * 100.0
+        print(f"[PCA CONFIG] Using exact n_components = {n_components} ({pct_display:.1f}% of raw features)")
+    else:
+        # Default: 20%
+        pct_display = 20.0
+        n_components = max(1, int(round(total_original_features * 0.20)))
+        print(f"[PCA CONFIG] Defaulting to top 20% of features -> {n_components} components")
+
+    print("\n" + "=" * 70)
+    print(f"Target Output Directory: {output_dir}")
+    print(f"PCA Mode: '{pca_mode}' | Top Features: {pct_display:.1f}% ({n_components} components)")
+    print("=" * 70)
+
+    # Check if already computed
+    if output_dir.exists() and not overwrite:
+        metadata_file = output_dir / "metadata.json"
+        if metadata_file.exists() and check_splits_populated(output_dir):
+            try:
+                with open(metadata_file, "r") as f:
+                    meta = json.load(f)
+                if meta.get("n_components") == n_components and meta.get("pca_mode") == pca_mode:
+                    print(f"✓ PCA dataset already exists in {output_dir} with matching {n_components} components. Skipping.")
+                    print("  (Pass --overwrite to force regeneration)")
+                    return output_dir
+            except Exception:
+                pass
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Fit PCA model
     global_pca = None
     if pca_mode == "global":
         train_loader = DataLoader(
@@ -436,15 +443,12 @@ def process_and_save_pca_dataset(
         )
         global_pca = GlobalPCA(n_components=n_components)
         global_pca.fit(train_loader)
-        # Save fitted PCA model
         with open(output_dir / "pca_model.pkl", "wb") as f:
             pickle.dump(global_pca, f)
-
-    # Output 1D dimension
-    if pca_mode == "channel":
-        out_dim_1d = H * W * n_components
+        out_dim_1d = n_components
     else:
         out_dim_1d = n_components
+
     print(f"Projected 1D representation length: {out_dim_1d}")
 
     # Process and export splits
@@ -453,39 +457,34 @@ def process_and_save_pca_dataset(
         print(f"\nProcessing '{split}' split ({len(dataset_obj)} images)...")
         dest_split_dir = output_dir / split
 
-        # Create class folders in destination
         for cls in class_names:
             os.makedirs(dest_split_dir / cls, exist_ok=True)
 
         all_1d_data = []
         all_labels = []
 
-        # Iterate over all samples in dataset
         for idx in tqdm(range(len(dataset_obj)), desc=f"Exporting {split} to 1D PCA"):
             img_path, label = dataset_obj.samples[idx]
             cls_name = class_names[label]
             file_stem = Path(img_path).stem
 
-            # Load PIL image and convert to RGB (C, H, W)
             with Image.open(img_path) as img:
                 img_rgb = img.convert("RGB")
                 img_np = np.array(img_rgb).transpose(2, 0, 1).astype(np.float32) / 255.0
 
-            # Convert to 1D using selected PCA mode
-            if pca_mode == "channel":
-                arr_1d = pca_channel_per_image(img_np, n_components=n_components)
-            else:
+            if pca_mode == "global":
                 arr_flat = img_np.reshape(-1)
                 arr_1d = global_pca.transform(arr_flat)
+            else:
+                arr_full = pca_channel_per_image(img_np, n_components=1)
+                arr_1d = arr_full[:n_components]
 
-            # Save individual .npy file
             dest_file = dest_split_dir / cls_name / f"{file_stem}.npy"
             np.save(dest_file, arr_1d)
 
             all_1d_data.append(arr_1d)
             all_labels.append(label)
 
-        # Save consolidated numpy arrays for this split
         split_data_arr = np.stack(all_1d_data, axis=0).astype(np.float32)
         split_labels_arr = np.array(all_labels, dtype=np.int64)
 
@@ -493,13 +492,17 @@ def process_and_save_pca_dataset(
         np.save(output_dir / f"{split}_labels.npy", split_labels_arr)
         split_counts[split] = len(dataset_obj)
 
-    # Save metadata JSON
+    cum_var = float(np.sum(global_pca.explained_variance_ratio_)) if global_pca else 1.0
+
     metadata = {
         "dataset_name": dataset_name,
         "original_shape": [C, H, W],
+        "total_original_features": total_original_features,
+        "top_features_pct": pct_display,
         "pca_mode": pca_mode,
         "n_components": n_components,
         "output_1d_shape": [out_dim_1d],
+        "explained_variance_ratio_sum": round(cum_var, 4),
         "num_classes": len(class_names),
         "classes": class_names,
         "class_to_idx": class_to_idx,
@@ -512,7 +515,10 @@ def process_and_save_pca_dataset(
 
     print("\n" + "=" * 70)
     print(f"✓ Successfully generated 1D PCA dataset at: {output_dir}")
-    print(f"  • Original 3D shape: ({C}, {H}, {W})")
+    print(f"  • Original 3D shape: ({C}, {H}, {W}) -> {total_original_features} raw features")
+    print(f"  • Top features kept: {pct_display:.1f}% ({n_components} components)")
+    if global_pca:
+        print(f"  • Total variance explained: {cum_var * 100:.2f}%")
     print(f"  • Converted 1D shape: ({out_dim_1d},)")
     print(f"  • Split counts: {split_counts}")
     print(f"  • Class subdirectories: {len(class_names)} classes in train/, val/, test/")
@@ -529,7 +535,7 @@ def process_and_save_pca_dataset(
 class PCADataset(Dataset):
     """
     PyTorch Dataset for loading 1D PCA transformed data from the _pcs directory.
-    Supports either fast in-memory loading from consolidated .npy arrays or on-demand loading.
+    Supports fast in-memory loading from consolidated .npy arrays or on-demand loading.
     
     Usage:
         from pca_data import PCADataset
@@ -541,7 +547,6 @@ class PCADataset(Dataset):
         self.split = split
         self.load_in_memory = load_in_memory
 
-        # Load metadata if present
         meta_path = self.data_root / "metadata.json"
         if meta_path.exists():
             with open(meta_path, "r") as f:
@@ -551,7 +556,6 @@ class PCADataset(Dataset):
             self.metadata = {}
             self.classes = []
 
-        # Check for consolidated array
         data_file = self.data_root / f"{split}_data.npy"
         labels_file = self.data_root / f"{split}_labels.npy"
 
@@ -561,7 +565,6 @@ class PCADataset(Dataset):
             self.use_consolidated = True
         else:
             self.use_consolidated = False
-            # Find all .npy files in split directory
             split_dir = self.data_root / split
             self.samples = []
             if split_dir.exists():
@@ -588,18 +591,88 @@ class PCADataset(Dataset):
 
 
 # ==============================================================================
-# Script Execution Entrypoint
+# CLI Entrypoint
 # ==============================================================================
 
-if __name__ == "__main__":
-    process_and_save_pca_dataset(
-        dataset_name=DATASET_NAME,
-        root_dir=PROJECT_ROOT,
-        pca_mode=PCA_MODE,
-        n_components=N_COMPONENTS,
-        overwrite=OVERWRITE,
-        val_ratio=VAL_RATIO,
-        seed=SEED,
-        batch_size=BATCH_SIZE
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Convert 3D image datasets to 1D via PCA with top x% features."
     )
+    parser.add_argument(
+        "--dataset", "-d",
+        type=str,
+        default=DATASET_NAME,
+        help=f"Dataset name: 'cifar10', 'cifar100', 'svhn', 'tiny-imagenet', 'inaturalist' (default: {DATASET_NAME})"
+    )
+    parser.add_argument(
+        "--top_features_pct", "--top_features", "-p", "--pct",
+        type=float,
+        default=TOP_FEATURES_PCT,
+        help="Percentage of top features to retain (e.g. 20 for 20%%, 10 for 10%%, 0.2 for 20%%) (default: 20.0)"
+    )
+    parser.add_argument(
+        "--n_components", "-k",
+        type=int,
+        default=N_COMPONENTS,
+        help="Exact number of principal components to retain (overrides top_features_pct if set)"
+    )
+    parser.add_argument(
+        "--pca_mode", "-m",
+        type=str,
+        default=PCA_MODE,
+        choices=["global", "channel"],
+        help=f"PCA mode: 'global' (dataset-wide PCA to top x%% features) or 'channel' (per-image channel PCA) (default: {PCA_MODE})"
+    )
+    parser.add_argument(
+        "--data_dir",
+        type=str,
+        default=str(PROJECT_ROOT),
+        help="Base directory containing datasets (default: project root)"
+    )
+    parser.add_argument(
+        "--output_dir", "-o",
+        type=str,
+        default=None,
+        help="Custom output directory name (defaults to <dataset>_pcs in root directory)"
+    )
+    parser.add_argument(
+        "--val_ratio",
+        type=float,
+        default=VAL_RATIO,
+        help="Validation split ratio if data preparation is triggered (default: 0.2)"
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=SEED,
+        help="Random seed (default: 42)"
+    )
+    parser.add_argument(
+        "--batch_size", "-b",
+        type=int,
+        default=BATCH_SIZE,
+        help="Batch size for IncrementalPCA and data loading (default: 64)"
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        default=OVERWRITE,
+        help="Overwrite existing output directory if it already exists"
+    )
+    return parser.parse_args()
 
+
+if __name__ == "__main__":
+    args = parse_args()
+    process_and_save_pca_dataset(
+        dataset_name=args.dataset,
+        root_dir=Path(args.data_dir),
+        top_features_pct=args.top_features_pct,
+        n_components=args.n_components,
+        pca_mode=args.pca_mode,
+        output_dir_name=args.output_dir,
+        overwrite=args.overwrite,
+        val_ratio=args.val_ratio,
+        seed=args.seed,
+        batch_size=args.batch_size
+    )
